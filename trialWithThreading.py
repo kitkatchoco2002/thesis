@@ -38,22 +38,22 @@ detection_lock = threading.Lock()
 HEAD_ROTATE_TIME = 3  # 3 seconds
 DETERRENT_TIME = 5  # 5 seconds
 
-# Flag to control interval mode
+# Global Flags
 in_interval_mode = True
+bird_response_running = False  # Prevent multiple deterrent threads
 
 
 def detect_objects():
     """Continuously detects objects and updates the global variable."""
     global detected_objects
     while True:
-        # Capture a frame
         frame = picam2.capture_array()
         start_time = time.time()
         results = model(frame, imgsz=640)
         end_time = time.time()
         inference_time = end_time - start_time
 
-        # Update detected objects
+        # Update detected objects safely
         with detection_lock:
             detected_objects = results[0].boxes.cls.tolist()
 
@@ -65,8 +65,10 @@ def detect_objects():
 
 def bird_detected_response():
     """Activates deterrents when a bird is detected and stops when birds leave."""
-    global in_interval_mode
-    in_interval_mode = False  # Stop interval mode
+    global in_interval_mode, bird_response_running
+    with detection_lock:
+        bird_response_running = True  # Mark deterrent as active
+        in_interval_mode = False  # Stop interval mode
 
     print("Bird detected! Activating deterrents.")
 
@@ -75,23 +77,27 @@ def bird_detected_response():
     GPIO.output(17, GPIO.HIGH)  # Turn on arms
     head_pwm.ChangeDutyCycle(0)  # Stop head rotation
 
-    # Keep deterrents ON while birds are present
-    time_elapsed = 0
-    while time_elapsed < 20:  # Max 20 seconds deterrent time
-        with detection_lock:
-            if not any(cls in birds_and_flock for cls in detected_objects):
-                print("Birds left, stopping deterrents early.")
-                break  # Exit early if birds are gone
+    # # Keep deterrents ON while birds are present
+    # time_elapsed = 0
+    # while time_elapsed < 20:  # Max 20 seconds deterrent time
+    #     with detection_lock:
+    #         if not any(cls in birds_and_flock for cls in detected_objects):
+    #             print("Birds left, stopping deterrents early.")
+    #             break  # Exit early if birds are gone
+    #         else:
+    #             print("Still detecting...")
 
-        time.sleep(1)
-        time_elapsed += 1
+    time.sleep(5)
+        # time_elapsed += 1
 
     # Turn off deterrents
     GPIO.output(27, GPIO.LOW)
     GPIO.output(17, GPIO.LOW)
     print("Deterrents turned off. Returning to interval mode.")
 
-    in_interval_mode = True  # Resume interval mode
+    with detection_lock:
+        bird_response_running = False  # Allow future deterrent activations
+        in_interval_mode = True  # Resume interval mode
 
 
 def interval_mode_cycle():
@@ -123,12 +129,13 @@ detection_thread.start()
 interval_thread = threading.Thread(target=interval_mode_cycle, daemon=True)
 interval_thread.start()
 
-# Start interval mode in the main thread
+# Main control loop
 try:
     while True:
         with detection_lock:
             if any(cls in birds_and_flock for cls in detected_objects):
-                bird_detected_response()  # Runs only if a bird is detected
+                if not bird_response_running:  # Prevent multiple deterrent activations
+                    threading.Thread(target=bird_detected_response, daemon=True).start()
 
         time.sleep(0.5)  # Small delay to balance CPU usage
 
