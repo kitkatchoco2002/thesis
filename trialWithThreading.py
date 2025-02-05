@@ -64,32 +64,42 @@ def detect_objects():
 
 
 def bird_detected_response():
-    """Activates deterrents when a bird or flock is detected."""
+    """Activates deterrents when a bird is detected and stops when birds leave."""
     global in_interval_mode
-    in_interval_mode = False  # Exit interval mode immediately
+    in_interval_mode = False  # Stop interval mode
 
-    print("Bird detected! Activating deterrents immediately.")
+    print("Bird detected! Activating deterrents.")
 
     # Activate deterrents
     GPIO.output(27, GPIO.HIGH)  # Turn on laser
     GPIO.output(17, GPIO.HIGH)  # Turn on arms
     head_pwm.ChangeDutyCycle(0)  # Stop head rotation
 
-    time.sleep(20)  # Deterrents active for 20 seconds
+    # Keep deterrents ON while birds are present
+    time_elapsed = 0
+    while time_elapsed < 20:  # Max 20 seconds deterrent time
+        with detection_lock:
+            if not any(cls in birds_and_flock for cls in detected_objects):
+                print("Birds left, stopping deterrents early.")
+                break  # Exit early if birds are gone
 
-    # Deactivate deterrents
+        time.sleep(1)
+        time_elapsed += 1
+
+    # Turn off deterrents
     GPIO.output(27, GPIO.LOW)
     GPIO.output(17, GPIO.LOW)
-    in_interval_mode = True  # Return to interval mode
+    print("Deterrents turned off. Returning to interval mode.")
+
+    in_interval_mode = True  # Resume interval mode
 
 
 def interval_mode_cycle():
-    """Runs the interval mode cycle in a loop."""
-    global in_interval_mode
+    """Runs the interval mode cycle indefinitely, but pauses when birds are detected."""
     while True:
         if in_interval_mode:
-            print("Interval Mode: Head Rotating...")
-            head_pwm.ChangeDutyCycle(90)  # Start head rotation
+            print("Interval Mode: Rotating Head.")
+            head_pwm.ChangeDutyCycle(90)  # Rotate head
             time.sleep(HEAD_ROTATE_TIME)
 
             print("Interval Mode: Stopping head, activating deterrents.")
@@ -98,25 +108,27 @@ def interval_mode_cycle():
             GPIO.output(17, GPIO.HIGH)  # Turn on arms
             time.sleep(DETERRENT_TIME)
 
-            print("Interval Mode: Turning off deterrents, restarting cycle.")
+            print("Interval Mode: Turning off deterrents.")
             GPIO.output(27, GPIO.LOW)
             GPIO.output(17, GPIO.LOW)
 
-        time.sleep(1)  # Small delay to prevent excessive CPU usage
+        time.sleep(1)  # Small delay to prevent CPU overload
 
 
 # Start detection thread
 detection_thread = threading.Thread(target=detect_objects, daemon=True)
 detection_thread.start()
 
+# Start interval mode thread (ALWAYS RUNNING)
+interval_thread = threading.Thread(target=interval_mode_cycle, daemon=True)
+interval_thread.start()
+
 # Start interval mode in the main thread
 try:
     while True:
         with detection_lock:
-            detects_bird_or_flock = any(cls in birds_and_flock for cls in detected_objects)
-
-        if detects_bird_or_flock:
-            bird_detected_response()
+            if any(cls in birds_and_flock for cls in detected_objects):
+                bird_detected_response()  # Runs only if a bird is detected
 
         time.sleep(0.5)  # Small delay to balance CPU usage
 
