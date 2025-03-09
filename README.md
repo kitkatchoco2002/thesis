@@ -1,6 +1,6 @@
 #To Check realtime logs
 ```
-journalctl -u my_script.services -f
+journalctl -u my_script.service -f
 ```
 
 #To stop the service
