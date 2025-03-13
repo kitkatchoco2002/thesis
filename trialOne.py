@@ -1,19 +1,61 @@
+"""
+-this code has the led turn on if a bird is detected thus only turned on when it is in bird active response mode
+- led lights will turn on if the code is in error.
+Bird Deterrent System using Raspberry Pi
+This script implements a bird deterrent system using computer vision and various deterrent mechanisms.
+"""
+
+# Standard library imports
 import time
+import threading
+
+# Third-party imports
+import pygame
 from picamera2 import Picamera2
 from ultralytics import YOLO
 import RPi.GPIO as GPIO
 
-# Setup GPIO
-GPIO.setmode(GPIO.BCM)  # Use BCM pin numbering
-GPIO.setup(17, GPIO.OUT)  # Arm 1 & Arm 2 
-GPIO.setup(27, GPIO.OUT)  # LASER control
-GPIO.setup(23, GPIO.OUT)  # HEAD control
+# ============= Configuration Constants =============
+# GPIO Pin Configuration
+PIN_ARM = 17      # Arm 1 & Arm 2 control
+PIN_LASER = 27    # LASER control
+PIN_HEAD = 23     # HEAD control
+PIN_LED = 22      # LED indicator for bird detection
+PIN_ERROR_LED = 24  # LED indicator for system errors
 
-# Initialize PWM for head speed control
-head_pwm = GPIO.PWM(23, 1000)  # Head control (Pin 23), frequency 100 Hz
-head_pwm.start(0)  # Start with 0% duty cycle (stopped)
+# Audio Configuration
+SOUND_FILE = "deterrent_sound.mp3"
 
-# Initialize the camera
+# Timing Configuration
+HEAD_ROTATE_TIME = 3    # Head rotation duration in seconds
+DETERRENT_TIME = 5      # Deterrent activation duration in seconds
+
+# Object Detection Classes
+BIRDS_AND_FLOCK = [1, 2]        # Bird and flock class IDs
+HUMANS_AND_FAKE_BIRDS = [0, 3]  # Fake bird and human class IDs
+
+# ============= Hardware Initialization =============
+# Initialize audio system
+pygame.mixer.init()
+try:
+    pygame.mixer.music.load(SOUND_FILE)
+except pygame.error:
+    print(f"Error loading sound file: {SOUND_FILE}")
+
+# Initialize GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(PIN_ARM, GPIO.OUT)
+GPIO.setup(PIN_LASER, GPIO.OUT)
+GPIO.setup(PIN_HEAD, GPIO.OUT)
+GPIO.setup(PIN_LED, GPIO.OUT)  # Setup LED pin as output
+GPIO.setup(PIN_ERROR_LED, GPIO.OUT)  # Setup error LED pin as output
+
+# Initialize PWM for head control
+head_pwm = GPIO.PWM(PIN_HEAD, 1000)
+head_pwm.start(0)
+
+# ============= Camera and Model Setup =============
+# Initialize camera
 picam2 = Picamera2()
 picam2.preview_configuration.main.size = (640, 640)
 picam2.preview_configuration.main.format = "RGB888"
@@ -21,121 +63,150 @@ picam2.preview_configuration.align()
 picam2.configure("preview")
 picam2.start()
 
-# Load the YOLO model
+# Load YOLO model
 model = YOLO("best.pt")
 print(model.names)
 
-# Class IDs for object detection
-birds_and_flock = [1, 2]  # Bird and flock
-humans_and_fake_birds = [0, 3]  # Fake bird and human
+# ============= Global State Variables =============
+detected_objects = []
+detection_lock = threading.Lock()
+in_interval_mode = True
+bird_response_running = False
 
-# Timers for state switching
-no_bird_timer = time.time()  # Track time since last bird detection
-time_interval_timer = time.time()  # Track timed activation interval
-in_time_interval_mode = True  # Track if system is in time interval mode
-
-#TODO: SPEAKER TO BE ADDED
-def bird_detected_response():
-    print("Bird or Flock detected: Activating deterrents.")
-    
-    global in_time_interval_mode, no_bird_timer
-    in_time_interval_mode = False  # Reset state
-    no_bird_timer = time.time()  # Reset no bird timer
-
-    GPIO.output(27, GPIO.HIGH)  # Turn on laser
-    GPIO.output(17, GPIO.HIGH)  # Turn on arms
-    head_pwm.ChangeDutyCycle(0)  # Stop head rotation
-    
-    time.sleep(20)  # Keep deterrents active for 20 seconds
-
-    GPIO.output(27, GPIO.LOW)  # Turn off laser
-    GPIO.output(17, GPIO.LOW)  # Turn off arms
-    in_time_interval_mode = True
-
-def no_bird_detected_response():
-    elapsed_no_bird_time = time.time() - no_bird_timer
-
-    if elapsed_no_bird_time >= 10:  # 2 minutes of no bird detected (current number is to be changed for testing purposes only)
-        in_time_interval_mode = True
-        print("Switching to time-interval mode.")
-
-    if not in_time_interval_mode:
-        print("No bird detected: Normal mode, rotating head.")
-        # GPIO.output(27, GPIO.LOW)  # Turn off laser
-        # GPIO.output(17, GPIO.LOW)  # Turn off Arm 1
-        # head_pwm.ChangeDutyCycle(50)  # Rotate head at 90% speed
-
-try:
+# ============= Core Functions =============
+def detect_objects():
+    """
+    Continuously detects objects using the camera and YOLO model.
+    Updates the global detected_objects list with current detections.
+    """
+    global detected_objects
     while True:
-        # Capture a frame from the camera
-        frame = picam2.capture_array()
+        try:
+            frame = picam2.capture_array()
+            start_time = time.time()
+            results = model(frame, imgsz=640)
+            end_time = time.time()
+            inference_time = end_time - start_time
 
-        # Measure inference start time
-        start_time = time.time()
+            with detection_lock:
+                detected_objects = results[0].boxes.cls.tolist()
 
-        # Run object detection on the frame
-        results = model(frame, imgsz=640)
+            print(f"Inference Time: {inference_time:.2f} seconds")
+            print(f"Detected Objects: {[model.names[int(cls)] for cls in detected_objects]}")
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"Error in object detection: {str(e)}")
+            GPIO.output(PIN_ERROR_LED, GPIO.HIGH)  # Turn on error LED
+            time.sleep(1)  # Keep error LED on for at least 1 second
+            GPIO.output(PIN_ERROR_LED, GPIO.LOW)  # Turn off error LED
 
-        # Measure inference end time
-        end_time = time.time()
-        inference_time = end_time - start_time
+def play_deterrent_sound():
+    """Plays the deterrent sound using pygame mixer."""
+    pygame.mixer.music.play()
 
-        # Extract detected object classes
-        detected_objects = results[0].boxes.cls.tolist()
+def activate_deterrents():
+    """Activates all deterrent mechanisms."""
+    GPIO.output(PIN_LASER, GPIO.HIGH)
+    GPIO.output(PIN_ARM, GPIO.HIGH)
+    play_deterrent_sound()
+    head_pwm.ChangeDutyCycle(0)
 
-        # Determine the state based on detection
-        detects_bird_or_flock = any(cls in birds_and_flock for cls in detected_objects)
-        detects_human_or_fake_bird = any(cls in humans_and_fake_birds for cls in detected_objects)
+def deactivate_deterrents():
+    """Deactivates all deterrent mechanisms."""
+    GPIO.output(PIN_LASER, GPIO.LOW)
+    GPIO.output(PIN_ARM, GPIO.LOW)
 
-        # Print inference time and detected objects
-        print(f"Inference Time: {inference_time:.2f} seconds")
-        print(f"Detected Objects: {[model.names[int(cls)] for cls in detected_objects]}")
+def bird_detected_response():
+    """
+    Handles the response when birds are detected.
+    Activates deterrents and manages the response cycle.
+    """
+    global in_interval_mode, bird_response_running
+    
+    with detection_lock:
+        bird_response_running = True
+        in_interval_mode = False
 
-        # --- Normal State Logic ---
-        # if bird is detected then turn on laser and arms for 20 seconds
-        # if bird is detected then turn off the head rotation for 20 seconds
-        if detects_bird_or_flock:
-           bird_detected_response()
-            
+    print("Bird detected! Activating deterrents.")
+    GPIO.output(PIN_LED, GPIO.HIGH)  # Turn on LED when bird is detected
+    activate_deterrents()
+    time.sleep(DETERRENT_TIME)
+    deactivate_deterrents()
+    GPIO.output(PIN_LED, GPIO.LOW)  # Turn off LED after deterrent cycle
+    print("Deterrents turned off. Returning to interval mode.")
 
-        elif detects_human_or_fake_bird or not detected_objects:
-            no_bird_detected_response()
+    with detection_lock:
+        bird_response_running = False
+        in_interval_mode = True
 
-        # --- Time Interval Activation Mode ---
-        if in_time_interval_mode:
-            elapsed_time_interval = time.time() - time_interval_timer
+def interval_mode_cycle():
+    """
+    Manages the interval mode cycle of the deterrent system.
+    Alternates between head rotation and deterrent activation.
+    """
+    while True:
+        if in_interval_mode:
+            print("Interval Mode: Rotating Head.")
+            head_pwm.ChangeDutyCycle(90)
+            time.sleep(HEAD_ROTATE_TIME)
 
-            if elapsed_time_interval >= 300:  # Every 5 minutes (300 seconds)
-                print("Time Interval Mode: Activating arms and laser for 20 seconds.")
+            print("Interval Mode: Stopping head, activating deterrents.")
+            head_pwm.ChangeDutyCycle(0)
+            activate_deterrents()
+            time.sleep(DETERRENT_TIME)
 
-                # Stop head rotation
-                head_pwm.ChangeDutyCycle(0)
+            print("Interval Mode: Turning off deterrents.")
+            deactivate_deterrents()
 
-                # Activate arms and laser
-                GPIO.output(23, GPIO.LOW)  # Turn on laser
-                GPIO.output(27, GPIO.HIGH)  # Turn on laser
-                GPIO.output(17, GPIO.HIGH)  # Turn on arms
-                time.sleep(20)  # Run for 20 seconds
-                head_pwm.ChangeDutyCycle(90)
-                GPIO.output(23, GPIO.HIGH)  # Turn on laser
-                GPIO.output(17, GPIO.LOW)  # Turn off arms
-                GPIO.output(27, GPIO.LOW)  # Turn off laser
+        time.sleep(1)
 
-                # # Resume head rotation
-                # head_pwm.ChangeDutyCycle(90)
+# ============= Main Program =============
+def main():
+    """Main program entry point."""
+    try:
+        # Start detection thread
+        detection_thread = threading.Thread(target=detect_objects, daemon=True)
+        detection_thread.start()
 
-                # Reset time interval timer
-                time_interval_timer = time.time()
+        # Start interval mode thread
+        interval_thread = threading.Thread(target=interval_mode_cycle, daemon=True)
+        interval_thread.start()
 
-        # Sleep for a short time to prevent excessive looping
-        time.sleep(0.5)
+        while True:
+            try:
+                with detection_lock:
+                    if any(cls in BIRDS_AND_FLOCK for cls in detected_objects):
+                        if not bird_response_running:
+                            threading.Thread(target=bird_detected_response, daemon=True).start()
+                time.sleep(0.5)
+            except Exception as e:
+                print(f"Error in main loop: {str(e)}")
+                GPIO.output(PIN_ERROR_LED, GPIO.HIGH)  # Turn on error LED
+                time.sleep(1)  # Keep error LED on for at least 1 second
+                GPIO.output(PIN_ERROR_LED, GPIO.LOW)  # Turn off error LED
 
-except KeyboardInterrupt:
-    print("Program interrupted by the user.")
+    except KeyboardInterrupt:
+        print("Program interrupted by the user.")
+    except Exception as e:
+        print(f"Critical error in main program: {str(e)}")
+        GPIO.output(PIN_ERROR_LED, GPIO.HIGH)  # Turn on error LED
+        time.sleep(5)  # Keep error LED on for 5 seconds for critical errors
+        GPIO.output(PIN_ERROR_LED, GPIO.LOW)  # Turn off error LED
+    finally:
+        cleanup()
 
-finally:
-    # Clean up resources
-    picam2.close()
-    head_pwm.stop()  # Stop the PWM for the head
-    GPIO.cleanup()  # Reset GPIO pins
-    print("Resources cleaned up!")
+def cleanup():
+    """Cleanup resources before program exit."""
+    try:
+        picam2.close()
+        head_pwm.stop()
+        GPIO.cleanup()
+        print("Resources cleaned up!")
+    except Exception as e:
+        print(f"Error during cleanup: {str(e)}")
+        GPIO.output(PIN_ERROR_LED, GPIO.HIGH)  # Turn on error LED
+        time.sleep(3)  # Keep error LED on for 3 seconds
+        GPIO.output(PIN_ERROR_LED, GPIO.LOW)  # Turn off error LED
+
+if __name__ == "__main__":
+    main()
