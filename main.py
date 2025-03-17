@@ -119,8 +119,8 @@ def activate_deterrents():
 def deactivate_deterrents():
     """Deactivates all deterrent mechanisms."""
     GPIO.gpio_write(h, PIN_LASER, 0)
-    GPIO.gpio_write(h, PIN_ARM1, 1)
-    GPIO.gpio_write(h, PIN_ARM2, 1)
+    GPIO.gpio_write(h, PIN_ARM1, 0)
+    GPIO.gpio_write(h, PIN_ARM2, 0)
     pygame.mixer.music.stop()  
 
 def bird_detected_response():
