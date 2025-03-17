@@ -12,7 +12,7 @@ import lgpio as GPIO  # Use lgpio instead of RPi.GPIO
 # ============= Configuration Constants =============
 # GPIO Pin Configuration
 PIN_ARM1 = 17     # Arm 1 control
-PIN_ARM2 = 18     # Arm 2 control
+PIN_ARM2 = 25     # Arm 2 control
 PIN_LASER = 27    # LASER control
 PIN_HEAD = 23     # HEAD control
 PIN_LED = 22      # LED indicator for bird detection
