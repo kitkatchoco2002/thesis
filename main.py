@@ -11,7 +11,8 @@ import lgpio as GPIO  # Use lgpio instead of RPi.GPIO
 
 # ============= Configuration Constants =============
 # GPIO Pin Configuration
-PIN_ARM = 17      # Arm 1 & Arm 2 control
+PIN_ARM1 = 17     # Arm 1 control
+PIN_ARM2 = 18     # Arm 2 control
 PIN_LASER = 27    # LASER control
 PIN_HEAD = 23     # HEAD control
 PIN_LED = 22      # LED indicator for bird detection
@@ -40,7 +41,8 @@ except pygame.error:
 
 # Initialize GPIO
 h = GPIO.gpiochip_open(0)
-GPIO.gpio_claim_output(h, PIN_ARM)
+GPIO.gpio_claim_output(h, PIN_ARM1)
+GPIO.gpio_claim_output(h, PIN_ARM2)
 GPIO.gpio_claim_output(h, PIN_LASER)
 GPIO.gpio_claim_output(h, PIN_HEAD)
 GPIO.gpio_claim_output(h, PIN_LED)  
@@ -109,15 +111,16 @@ def activate_deterrents():
     play_deterrent_sound()
     time.sleep(0.1)
     GPIO.gpio_write(h, PIN_LASER, 1)
-    GPIO.gpio_write(h, PIN_ARM, 1)
-    
+    GPIO.gpio_write(h, PIN_ARM1, 1)
+    GPIO.gpio_write(h, PIN_ARM2, 1)
     GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 0) 
     print("deterrents activated")
 
 def deactivate_deterrents():
     """Deactivates all deterrent mechanisms."""
     GPIO.gpio_write(h, PIN_LASER, 0)
-    GPIO.gpio_write(h, PIN_ARM, 0)
+    GPIO.gpio_write(h, PIN_ARM1, 1)
+    GPIO.gpio_write(h, PIN_ARM2, 1)
     pygame.mixer.music.stop()  
 
 def bird_detected_response():
