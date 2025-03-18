@@ -15,7 +15,7 @@ PIN_ARM1 = 17     # Arm 1 control
 PIN_ARM2 = 25     # Arm 2 control
 PIN_LASER = 27    # LASER control
 PIN_HEAD = 23     # HEAD control
-PIN_LED = 22      # LED indicator for bird detection
+PIN_LED = 22      # LED   indicator for bird detection
 PIN_ERROR_LED = 24  # LED indicator for system errors
 
 # Audio Configuration
@@ -180,7 +180,7 @@ def interval_mode_cycle():
         
         if current_interval_mode:
             print("Interval Mode: Rotating Head.")
-            GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 90) 
+            GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 50) 
             
             # Check if we're still in interval mode after head rotation
             rotation_end_time = time.time() + HEAD_ROTATE_TIME
