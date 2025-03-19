@@ -20,15 +20,16 @@ PIN_ACTIVE_INDICATOR = 24  # LED indicator for active system state
 
 # Audio Configuration
 SOUND_FILE = "deterrent_sound.mp3"
+AUDIO_VOLUME = 2.0 
 
 # Timing Configuration
-HEAD_ROTATE_TIME = 3    # Head rotation duration in seconds
+HEAD_ROTATE_TIME = 15    # Head rotation duration in seconds
 DETERRENT_TIME = 15      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
 
 # Operation Cycle Configuration
-ACTIVE_HOURS =  10 * 60 #for testing activ for 10 mins #14 * 60 * 60  # 14 hours in seconds
-INACTIVE_HOURS = 10 * 60 #for testing inactive for 10 mins #10 * 60 * 60  # 10 hours in seconds
+ACTIVE_HOURS =  14*60*60 # for testing active for 30 second14s
+INACTIVE_HOURS = 10*60*60  # for testing inactive for 30 seconds
 
 # Object Detection Classes
 BIRDS_AND_FLOCK = [1, 2]        # Bird and flock class IDs
@@ -86,10 +87,13 @@ def detect_objects():
     """
     global detected_objects
     while True:
+        # Check system state with minimal lock time
         with system_state_lock:
-            if not system_active:
-                time.sleep(5)  # Sleep longer when system is inactive
-                continue
+            currently_active = system_active
+            
+        if not currently_active:
+            time.sleep(0.5)  # Short sleep when inactive
+            continue
                 
         try:
             frame = picam2.capture_array()
@@ -111,6 +115,7 @@ def detect_objects():
 def play_deterrent_sound():
     """Plays the deterrent sound using pygame mixer."""
     print("Sound playing")
+    pygame.mixer.music.set_volume(AUDIO_VOLUME)
     pygame.mixer.music.play()
 
 def activate_deterrents():
@@ -180,27 +185,59 @@ def interval_mode_cycle():
     """
     Manages the interval mode cycle of the deterrent system.
     Alternates between head rotation and deterrent activation.
+    Head rotation now pulses with brief pauses.
     """
     while True:
+        # Check system state with minimal lock time
         with system_state_lock:
             current_interval_mode = in_interval_mode
             currently_active = system_active
         
         if not currently_active:
-            time.sleep(5)  # Sleep longer when system is inactive
+            time.sleep(0.5)  # Short sleep when inactive
             continue
             
         if current_interval_mode:
-            print("Interval Mode: Rotating Head.")
-            GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 50) 
+            print("Interval Mode: Rotating Head with pulses.")
             
-            # Check if we're still in interval mode after head rotation
+            # Calculate timing for pulsed rotation
             rotation_end_time = time.time() + HEAD_ROTATE_TIME
+            pulse_on_time = 0.2  # Time the head rotates before pausing
+            pulse_off_time = 0.5  # Time the head pauses
+            
+            # Perform pulsed rotation until rotation time is complete
             while time.time() < rotation_end_time:
+                # Turn head on
+                GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 20)
+                
+                # Wait for pulse_on_time or until interval mode ends
+                pulse_on_end = time.time() + pulse_on_time
+                while time.time() < pulse_on_end:
+                    with system_state_lock:
+                        if not in_interval_mode or not system_active:
+                            break
+                    time.sleep(0.02)  # Short sleep to prevent CPU hogging
+                
+                # Check if we're still in interval mode and active
                 with system_state_lock:
                     if not in_interval_mode or not system_active:
                         break
-                time.sleep(0.1)
+                
+                # Turn head off briefly
+                GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 0)
+                
+                # Wait for pulse_off_time or until interval mode ends
+                pulse_off_end = time.time() + pulse_off_time
+                while time.time() < pulse_off_end:
+                    with system_state_lock:
+                        if not in_interval_mode or not system_active:
+                            break
+                    time.sleep(0.02)
+                
+                # Check if we're still in interval mode and active
+                with system_state_lock:
+                    if not in_interval_mode or not system_active:
+                        break
             
             with system_state_lock:
                 current_interval_mode = in_interval_mode
@@ -227,47 +264,41 @@ def interval_mode_cycle():
                     print("Interval Mode: Turning off deterrents.")
                     deactivate_deterrents()
         
-        time.sleep(1)
-
+        time.sleep(0.5)  # Shorter sleep to be more responsive
+        
 def time_cycle_controller():
     """
-    Controls the active/inactive cycle of the system based on time.
-    Runs for ACTIVE_HOURS, then stops for INACTIVE_HOURS, and repeats.
-    Uses PIN_ACTIVE_INDICATOR as a constant indicator when system is active.
+    Controls the active and inactive periods of the system.
+    Simplified to immediately toggle system state with direct timing.
     """
     global system_active
     
     while True:
-        # Start active period
+        # Active period
         print("==== SYSTEM ACTIVE PERIOD STARTED ====")
-        print(f"System will be active for {ACTIVE_HOURS//3600} hours")
-        
-        # Turn on ACTIVE_INDICATOR to show system is active
-        GPIO.gpio_write(h, PIN_ACTIVE_INDICATOR, 1)
-        
         with system_state_lock:
             system_active = True
         
-        # Stay active for ACTIVE_HOURS
+        GPIO.gpio_write(h, PIN_ACTIVE_INDICATOR, 1)
+        
+        # Simply sleep for the active period
         time.sleep(ACTIVE_HOURS)
         
-        # Start inactive period
+        # Inactive period
         print("==== SYSTEM INACTIVE PERIOD STARTED ====")
-        print(f"System will be inactive for {INACTIVE_HOURS//3600} hours")
-        
-        # Turn off ACTIVE_INDICATOR to show system is inactive
-        GPIO.gpio_write(h, PIN_ACTIVE_INDICATOR, 0)
-        
         with system_state_lock:
             system_active = False
-            
-        # Ensure all deterrents are off during inactive period
+        
+        GPIO.gpio_write(h, PIN_ACTIVE_INDICATOR, 0)
         deactivate_deterrents()
         GPIO.gpio_write(h, PIN_LED, 0)
         GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 0)
         
-        # Stay inactive for INACTIVE_HOURS
+        # Simply sleep for the inactive period
         time.sleep(INACTIVE_HOURS)
+        
+        print("==== INACTIVE PERIOD COMPLETE, RETURNING TO ACTIVE STATE ====")
+        # The loop will automatically set system_active to True at the start of the next iteration
 
 # ============= Main Program =============
 def main():
@@ -285,24 +316,28 @@ def main():
         time_cycle_thread = threading.Thread(target=time_cycle_controller, daemon=True)
         time_cycle_thread.start()
 
+        # Main loop
         while True:
             try:
+                # Check system state with minimal lock time
                 with system_state_lock:
                     currently_active = system_active
                 
-                if currently_active:
-                    # Check for birds
-                    bird_detected = False
-                    with detection_lock:
-                        bird_detected = any(cls in BIRDS_AND_FLOCK for cls in detected_objects)
-                    
-                    # Start bird response if needed
-                    if bird_detected:
-                        with system_state_lock:
-                            if not bird_response_running:
-                                threading.Thread(target=bird_detected_response, daemon=True).start()
+                if not currently_active:
+                    print("System is inactive. Checking again soon...")
+                    time.sleep(1)
+                    continue
                 
-                time.sleep(0.5)
+                # Process bird detection when active
+                with detection_lock:
+                    bird_detected = any(cls in BIRDS_AND_FLOCK for cls in detected_objects)
+                
+                if bird_detected:
+                    with system_state_lock:
+                        if not bird_response_running:
+                            threading.Thread(target=bird_detected_response, daemon=True).start()
+                
+                time.sleep(0.1)  # Shorter sleep to be more responsive
             except Exception as e:
                 print(f"Error in main loop: {str(e)}")
                 time.sleep(1)
