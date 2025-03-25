@@ -25,7 +25,7 @@ AUDIO_VOLUME = 2.0
 
 # Timing Configuration
 HEAD_ROTATE_TIME = 15    # Head rotation duration in seconds
-DETERRENT_TIME = 15      # Deterrent activation duration in seconds
+DETERRENT_TIME = 5      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
 
 # Operation Cycle Configuration
