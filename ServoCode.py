@@ -17,7 +17,7 @@ PIN_LASER = 27    # LASER control
 PIN_HEAD = 23     # HEAD control
 PIN_LED = 22      # LED indicator for bird detection
 PIN_ACTIVE_INDICATOR = 24  # LED indicator for active system state
-PIN_SERVO = 18    # New servo motor control pin
+PIN_SERVO = 5    # New servo motor control pin
 
 # Audio Configuration
 SOUND_FILE = "deterrent_sound.mp3"
@@ -25,7 +25,7 @@ INACTIVE_SOUND_FILE = "inactive_sound.mp3"  # New sound file for inactive period
 AUDIO_VOLUME = 2.0 
 
 # Timing Configuration
-HEAD_ROTATE_TIME = 15    # Head rotation duration in seconds
+HEAD_ROTATE_TIME = 10    # Head rotation duration in seconds
 DETERRENT_TIME = 5      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
 SERVO_SURPRISE_TIME = 0.1  # Time for quick surprise motion (seconds)
@@ -38,8 +38,8 @@ SERVO_DOWN_DUTY = 2.5 # Duty cycle for down position (adjust as needed)
 SERVO_MAX_SPEED = 100 # Maximum allowable speed parameter for fast movement
 
 # Operation Cycle Configuration
-ACTIVE_HOURS =  14*60*60 # for testing active for 30 second14s
-INACTIVE_HOURS = 10*60*60  # for testing inactive for 30 seconds
+ACTIVE_HOURS =  12*60*60 # for testing active for 30 second14s
+INACTIVE_HOURS = 12*60*60  # for testing inactive for 30 seconds
 
 # Object Detection Classes
 BIRDS_AND_FLOCK = [1, 2]        # Bird and flock class IDs
@@ -288,7 +288,7 @@ def interval_mode_cycle():
                 # Perform pulsed rotation until rotation time is complete
                 while time.time() < rotation_end_time:
                     # Turn head on
-                    GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 20)
+                    GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 15)
                     
                     # Wait for pulse_on_time or until interval mode ends
                     pulse_on_end = time.time() + pulse_on_time
