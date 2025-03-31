@@ -382,15 +382,7 @@ def time_cycle_controller():
             system_active = False
         
         GPIO.gpio_write(h, PIN_ACTIVE_INDICATOR, 0)
-        # Deactivate physical deterrents but don't stop audio (handled by interval_mode_cycle)
-        GPIO.gpio_write(h, PIN_LASER, 0)
-        GPIO.gpio_write(h, PIN_ARM1, 0)
-        GPIO.gpio_write(h, PIN_ARM2, 0)
-        GPIO.gpio_write(h, PIN_LED, 0)
-        GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 0)
-        
-        # Ensure servo is in down position during inactive period
-        move_servo_down()
+        deactivate_deterrents()
         
         # Simply sleep for the inactive period
         time.sleep(INACTIVE_HOURS)
