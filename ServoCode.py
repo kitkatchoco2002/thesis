@@ -17,7 +17,7 @@ PIN_LASER = 27    # LASER control
 PIN_HEAD = 23     # HEAD control
 PIN_LED = 22      # LED indicator for bird detection
 PIN_ACTIVE_INDICATOR = 24  # LED indicator for active system state
-PIN_SERVO = 5    # New servo motor control pin
+PIN_SERVO = 26    # New servo motor control pin
 
 # Audio Configuration
 SOUND_FILE = "deterrent_sound.mp3"
