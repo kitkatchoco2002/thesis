@@ -28,12 +28,12 @@ AUDIO_VOLUME = 2.0
 HEAD_ROTATE_TIME = 10    # Head rotation duration in seconds
 DETERRENT_TIME = 5      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
-SERVO_SURPRISE_TIME = 0.1  # Time for quick surprise motion (seconds)
+SERVO_SURPRISE_TIME = 0.005  # Time for quick surprise motion (seconds)
 SERVO_RESET_TIME = 1.0     # Slower time for resetting servo (seconds)
 
 # Servo Configuration
-SERVO_FREQ = 50       # Standard servo frequency (50Hz)
-SERVO_UP_DUTY = 9.0   # Max duty cycle for up position (adjust as needed for full tension)
+SERVO_FREQ = 60     
+SERVO_UP_DUTY = 12.5   # Max duty cycle for up position (adjust as needed for full tension)
 SERVO_DOWN_DUTY = 2.5 # Duty cycle for down position (adjust as needed)
 SERVO_MAX_SPEED = 100 # Maximum allowable speed parameter for fast movement
 
@@ -144,10 +144,8 @@ def quick_servo_surprise():
     
     # If we did a surprise recently, wait a bit to avoid potential damage
     current_time = time.time()
-    if current_time - last_surprise_time < 3.0:  # Minimum 3 seconds between surprises
+    if current_time - last_surprise_time < 1.0:  # Minimum 3 seconds between surprises
         time.sleep(current_time - last_surprise_time)
-    
-    print("SURPRISE! Fast servo activation!")
     
     # Quick snap to up position for surprise effect
     GPIO.tx_pwm(h, PIN_SERVO, SERVO_FREQ, SERVO_UP_DUTY)
