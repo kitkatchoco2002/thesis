@@ -347,31 +347,14 @@ def interval_mode_cycle():
                         deactivate_deterrents()  # This will also move servo down
         else:
             # INACTIVE MODE - Only play the sound at intervals, no physical deterrents
-            print("Inactive Mode: Playing inactive sound.")
+            print("Inactive Mode: system resting.")
             
             # Ensure servo is in down position during inactive mode
             if servo_position != "down":
                 move_servo_down()
                 
-            play_inactive_sound()
-            
-            # Wait for the sound duration (using DETERRENT_TIME for consistency)
-            sound_end_time = time.time() + DETERRENT_TIME
-            while time.time() < sound_end_time:
-                with system_state_lock:
-                    if system_active:  # Exit if we switch to active mode
-                        break
-                time.sleep(0.1)
-                
-            pygame.mixer.music.stop()  # Ensure sound stops
-            
-            # Wait for the equivalent of HEAD_ROTATE_TIME before playing sound again
-            pause_end_time = time.time() + HEAD_ROTATE_TIME
-            while time.time() < pause_end_time:
-                with system_state_lock:
-                    if system_active:  # Exit if we switch to active mode
-                        break
-                time.sleep(0.5)
+
+            time.sleep(0.1)
         
         time.sleep(0.5)  # Shorter sleep to be more responsive
         
