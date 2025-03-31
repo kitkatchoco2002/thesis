@@ -25,15 +25,15 @@ INACTIVE_SOUND_FILE = "inactive_sound.mp3"  # New sound file for inactive period
 AUDIO_VOLUME = 2.0 
 
 # Timing Configuration
-HEAD_ROTATE_TIME = 10    # Head rotation duration in seconds
+HEAD_ROTATE_TIME = 13    # Head rotation duration in seconds
 DETERRENT_TIME = 5      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
-SERVO_SURPRISE_TIME = 0.005  # Time for quick surprise motion (seconds)
+SERVO_SURPRISE_TIME = 0.002  # Time for quick surprise motion (seconds)
 SERVO_RESET_TIME = 1.0     # Slower time for resetting servo (seconds)
 
 # Servo Configuration
-SERVO_FREQ = 60     
-SERVO_UP_DUTY = 12.5   # Max duty cycle for up position (adjust as needed for full tension)
+SERVO_FREQ = 50     
+SERVO_UP_DUTY = 13.5   
 SERVO_DOWN_DUTY = 2.5 # Duty cycle for down position (adjust as needed)
 SERVO_MAX_SPEED = 100 # Maximum allowable speed parameter for fast movement
 
