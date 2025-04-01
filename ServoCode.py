@@ -25,11 +25,11 @@ INACTIVE_SOUND_FILE = "inactive_sound.mp3"  # New sound file for inactive period
 AUDIO_VOLUME = 2.0 
 
 # Timing Configuration
-HEAD_ROTATE_TIME = 13    # Head rotation duration in seconds
-DETERRENT_TIME = 5      # Deterrent activation duration in seconds
+HEAD_ROTATE_TIME = 10    # Head rotation duration in seconds
+DETERRENT_TIME = 8      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
-SERVO_SURPRISE_TIME = 0.002  # Time for quick surprise motion (seconds)
-SERVO_RESET_TIME = 1.0     # Slower time for resetting servo (seconds)
+SERVO_SURPRISE_TIME = 0.05  # Time for quick surprise motion (seconds)
+SERVO_RESET_TIME = 0.5     # Slower time for resetting servo (seconds)
 
 # Servo Configuration
 SERVO_FREQ = 50     
@@ -138,15 +138,16 @@ def detect_objects():
             print(f"Error in object detection: {str(e)}")
             time.sleep(1)
 
-def quick_servo_surprise():
-    """Performs a fast upward servo movement to create a surprise action."""
+def lock_servo():
+    """Performs a fast upward servo movement to lock position (surprise action)."""
     global servo_position, last_surprise_time
     
     # If we did a surprise recently, wait a bit to avoid potential damage
     current_time = time.time()
-    if current_time - last_surprise_time < 1.0:  # Minimum 3 seconds between surprises
+    if current_time - last_surprise_time < 1.0:  # Minimum 1 second between surprises
         time.sleep(current_time - last_surprise_time)
     
+    print("Locking servo to up position")
     # Quick snap to up position for surprise effect
     GPIO.tx_pwm(h, PIN_SERVO, SERVO_FREQ, SERVO_UP_DUTY)
     time.sleep(SERVO_SURPRISE_TIME)  # Very short time for surprise effect
@@ -154,15 +155,15 @@ def quick_servo_surprise():
     servo_position = "up"
     last_surprise_time = time.time()
 
-def move_servo_down():
-    """Moves the servo to the down position at a moderate speed."""
+def release_servo():
+    """Moves the servo to the down position at a moderate speed (release)."""
     global servo_position
     
     # If already down, do nothing
     if servo_position == "down":
         return
     
-    print("Slowly resetting servo to down position")
+    print("Slowly releasing servo to down position")
     GPIO.tx_pwm(h, PIN_SERVO, SERVO_FREQ, SERVO_DOWN_DUTY)
     time.sleep(SERVO_RESET_TIME)  # Longer time for a more gentle reset
     servo_position = "down"
@@ -185,12 +186,11 @@ def play_inactive_sound():
         print("Inactive sound file not available, skipping playback")
 
 def activate_deterrents():
-    """Activates all deterrent mechanisms."""
+    """Activates all deterrent mechanisms except servo which is handled separately."""
     print("deterrent activated")
     
-    # Synchronize the sound and servo surprise movement
-    quick_servo_surprise()  # Fast surprise action first
-    play_deterrent_sound()  # Play sound immediately after
+    # Play sound immediately
+    play_deterrent_sound()  
     
     GPIO.gpio_write(h, PIN_LASER, 1)
     GPIO.gpio_write(h, PIN_ARM1, 1)
@@ -200,19 +200,16 @@ def activate_deterrents():
     print("deterrents activated")
 
 def deactivate_deterrents():
-    """Deactivates all deterrent mechanisms."""
+    """Deactivates all deterrent mechanisms except servo which is handled separately."""
     GPIO.gpio_write(h, PIN_LASER, 0)
     GPIO.gpio_write(h, PIN_ARM1, 0)
     GPIO.gpio_write(h, PIN_ARM2, 0)
     pygame.mixer.music.stop()
-    
-    # Return servo to down position when deterrents are deactivated
-    move_servo_down()
 
 def bird_detected_response():
     """
     Handles the response when birds are detected.
-    Activates deterrents for the full duration without interruption.
+    Locks servo first, activates deterrents, then releases servo after deterrent time.
     """
     global in_interval_mode, bird_response_running, last_bird_response_time
     
@@ -224,10 +221,14 @@ def bird_detected_response():
         last_bird_response_time = time.time()
 
     try:
-        print("Bird detected! Activating deterrents.")
+        print("Bird detected! Locking servo and activating deterrents.")
         GPIO.gpio_write(h, PIN_LED, 1)  # Turn on LED to indicate bird detection
         
-        activate_deterrents()  # This will trigger the surprise servo action
+        # First lock the servo (surprise action)
+        lock_servo()
+        
+        # Then activate other deterrents
+        activate_deterrents()
         
         # Run deterrents for the full duration without interruption
         complete_deterrent_time = time.time() + DETERRENT_TIME
@@ -239,6 +240,10 @@ def bird_detected_response():
             
         # Deterrent cycle complete, deactivate everything
         deactivate_deterrents()
+        
+        # Release servo AFTER deterrents are deactivated
+        release_servo()
+        
         GPIO.gpio_write(h, PIN_LED, 0)  # Turn off LED
         print("Deterrents turned off. Returned to interval mode.")
     
@@ -259,7 +264,7 @@ def interval_mode_cycle():
     """
     Manages the interval mode cycle of the deterrent system.
     Alternates between head rotation and deterrent activation.
-    Now includes surprise servo actions during interval cycles.
+    Now locks servo before deterrents and releases after.
     """
     global servo_position
     
@@ -276,7 +281,7 @@ def interval_mode_cycle():
                 
                 # Make sure servo is in down position at start of interval
                 if servo_position != "down":
-                    move_servo_down()
+                    release_servo()
                 
                 # Calculate timing for pulsed rotation
                 rotation_end_time = time.time() + HEAD_ROTATE_TIME
@@ -322,10 +327,13 @@ def interval_mode_cycle():
                     currently_active = system_active
                 
                 if current_interval_mode and currently_active:
-                    print("Interval Mode: Stopping head, activating deterrents.")
+                    print("Interval Mode: Stopping head, locking servo, then activating deterrents.")
                     GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 0) 
                     
-                    # This will create the surprise effect with fast servo movement
+                    # First lock the servo
+                    lock_servo()
+                    
+                    # Then activate other deterrents
                     activate_deterrents()
                     
                     # Check if we're still in interval mode during deterrent activation
@@ -341,17 +349,19 @@ def interval_mode_cycle():
                         currently_active = system_active
                     
                     if current_interval_mode and currently_active:
-                        print("Interval Mode: Turning off deterrents.")
-                        deactivate_deterrents()  # This will also move servo down
+                        print("Interval Mode: Turning off deterrents, then releasing servo.")
+                        deactivate_deterrents()
+                        
+                        # Release servo AFTER deterrents are deactivated
+                        release_servo()
         else:
             # INACTIVE MODE - Only play the sound at intervals, no physical deterrents
             print("Inactive Mode: system resting.")
             
             # Ensure servo is in down position during inactive mode
             if servo_position != "down":
-                move_servo_down()
+                release_servo()
                 
-
             time.sleep(0.1)
         
         time.sleep(0.5)  # Shorter sleep to be more responsive
@@ -382,6 +392,9 @@ def time_cycle_controller():
         GPIO.gpio_write(h, PIN_ACTIVE_INDICATOR, 0)
         deactivate_deterrents()
         
+        # Ensure servo is in down position when inactive
+        release_servo()
+        
         # Simply sleep for the inactive period
         time.sleep(INACTIVE_HOURS)
         
@@ -393,7 +406,7 @@ def main():
     """Main program entry point."""
     try:
         # Initialize servo to down position at startup
-        move_servo_down()
+        release_servo()
         
         # Start detection thread
         detection_thread = threading.Thread(target=detect_objects, daemon=True)
@@ -436,6 +449,7 @@ def main():
 
     except KeyboardInterrupt:
         deactivate_deterrents()
+        release_servo()
         print("Program interrupted by the user.")
         
     except Exception as e:
