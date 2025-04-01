@@ -14,6 +14,7 @@ import lgpio as GPIO  # Use lgpio instead of RPi.GPIO
 PIN_ARM1 = 17     # Arm 1 control
 PIN_ARM2 = 25     # Arm 2 control
 PIN_REVERSE = 26
+PIN_REVERSE2 = 16
 PIN_LASER = 27    # LASER control
 PIN_HEAD = 23     # HEAD control
 PIN_LED = 22      # LED indicator for bird detection
@@ -143,21 +144,30 @@ def motor_pull_string():
     while time.time() < deterrent_end_time:
         GPIO.gpio_write(h, PIN_ARM2, 1)
         GPIO.gpio_write(h, PIN_REVERSE, 0)
+        GPIO.gpio_write(h, PIN_ARM1, 1)
+        GPIO.gpio_write(h, PIN_REVERSE2, 0)
         dc_position = "up"
         time.sleep(MOTOR_RUN_TIME)
         
         GPIO.gpio_write(h, PIN_ARM2, 0)
         GPIO.gpio_write(h, PIN_REVERSE, 0)
+        GPIO.gpio_write(h, PIN_ARM1, 0)
+        GPIO.gpio_write(h, PIN_REVERSE2, 0)
         time.sleep(1.0)
+        
         # Reverse motor to reset string
         GPIO.gpio_write(h, PIN_ARM2, 0)
         GPIO.gpio_write(h, PIN_REVERSE, 1)
+        GPIO.gpio_write(h, PIN_ARM1, 0)
+        GPIO.gpio_write(h, PIN_REVERSE2, 1)
         dc_position = "down"
         time.sleep(MOTOR_RESET_TIME)
 
     # Stop motor
     GPIO.gpio_write(h, PIN_ARM2, 0)
     GPIO.gpio_write(h, PIN_REVERSE, 0)
+    GPIO.gpio_write(h, PIN_ARM1, 0)
+    GPIO.gpio_write(h, PIN_REVERSE2, 0)
     print("String reset complete.")
 
 def play_deterrent_sound():
@@ -184,7 +194,6 @@ def activate_deterrents():
     motor_pull_string()
     
     GPIO.gpio_write(h, PIN_LASER, 1)
-    GPIO.gpio_write(h, PIN_ARM1, 1)
     GPIO.tx_pwm(h, PIN_HEAD, PWM_FREQUENCY, 0) 
     
     print("deterrents activated")
@@ -194,7 +203,8 @@ def deactivate_deterrents():
     GPIO.gpio_write(h, PIN_LASER, 0)
     GPIO.gpio_write(h, PIN_ARM1, 0)
     pygame.mixer.music.stop()
-    
+    GPIO.gpio_write(h, PIN_ARM1, 0)
+    GPIO.gpio_write(h, PIN_REVERSE2, 0)
     GPIO.gpio_write(h, PIN_ARM2, 0)
     GPIO.gpio_write(h, PIN_REVERSE, 0)
 
@@ -396,16 +406,16 @@ def time_cycle_controller():
 def main():
     """Main program entry point."""
     try:
-         # Reverse motor to reset string
-        GPIO.gpio_write(h, PIN_ARM2, 0)
-        GPIO.gpio_write(h, PIN_REVERSE, 1)
-        dc_position = "down"
-        time.sleep(MOTOR_RESET_TIME)
+        #  # Reverse motor to reset string
+        # GPIO.gpio_write(h, PIN_ARM2, 0)
+        # GPIO.gpio_write(h, PIN_REVERSE, 1)
+        # dc_position = "down"
+        # time.sleep(MOTOR_RESET_TIME)
 
-        # Stop motor
-        GPIO.gpio_write(h, PIN_ARM2, 0)
-        GPIO.gpio_write(h, PIN_REVERSE, 0)
-        print("String reset complete.")
+        # # Stop motor
+        # GPIO.gpio_write(h, PIN_ARM2, 0)
+        # GPIO.gpio_write(h, PIN_REVERSE, 0)
+        # print("String reset complete.")
 
         
         # Start detection thread
