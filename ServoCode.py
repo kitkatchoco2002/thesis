@@ -28,12 +28,12 @@ AUDIO_VOLUME = 2.0
 HEAD_ROTATE_TIME = 10    # Head rotation duration in seconds
 DETERRENT_TIME = 8      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
-SERVO_SURPRISE_TIME = 0.05  # Time for quick surprise motion (seconds)
+SERVO_SURPRISE_TIME = 0.5  # Time for quick surprise motion (seconds)
 SERVO_RESET_TIME = 0.5     # Slower time for resetting servo (seconds)
 
 # Servo Configuration
 SERVO_FREQ = 50     
-SERVO_UP_DUTY = 13.5   
+SERVO_UP_DUTY = 12.5   
 SERVO_DOWN_DUTY = 2.5 # Duty cycle for down position (adjust as needed)
 SERVO_MAX_SPEED = 100 # Maximum allowable speed parameter for fast movement
 
