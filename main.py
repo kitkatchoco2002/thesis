@@ -23,13 +23,13 @@ SOUND_FILE = "deterrent_sound.mp3"
 AUDIO_VOLUME = 2.0 
 
 # Timing Configuration
-HEAD_ROTATE_TIME = 15    # Head rotation duration in seconds
-DETERRENT_TIME = 15      # Deterrent activation duration in seconds
+HEAD_ROTATE_TIME = 13    # Head rotation duration in seconds
+DETERRENT_TIME = 8      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
 
 # Operation Cycle Configuration
-ACTIVE_HOURS =  14*60*60 # for testing active for 30 second14s
-INACTIVE_HOURS = 10*60*60  # for testing inactive for 30 seconds
+ACTIVE_HOURS =  12*60*60 # for testing active for 30 second14s
+INACTIVE_HOURS = 12*60*60  # for testing inactive for 30 seconds
 
 # Object Detection Classes
 BIRDS_AND_FLOCK = [1, 2]        # Bird and flock class IDs
