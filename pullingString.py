@@ -28,8 +28,8 @@ AUDIO_VOLUME = 2.0
 HEAD_ROTATE_TIME = 13    # Head rotation duration in seconds
 DETERRENT_TIME = 5      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
-MOTOR_RUN_TIME = 1.0    # Time for quick string pull (seconds)
-MOTOR_RESET_TIME = 1.0
+MOTOR_RUN_TIME = 0.5    # Time for quick string pull (seconds)
+MOTOR_RESET_TIME = 0.5
 
 # # Servo Configuration
 # SERVO_FREQ = 50     
