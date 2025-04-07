@@ -24,6 +24,8 @@ AUDIO_VOLUME = 2.0
 
 # Timing Configuration
 HEAD_ROTATE_TIME = 13    # Head rotation duration in seconds
+HEAD_ROTATE_ALT1 = 8     # First alternate rotation duration
+HEAD_ROTATE_ALT2 = 10    # Second alternate rotation duration
 DETERRENT_TIME = 8      # Deterrent activation duration in seconds
 BIRD_COOLDOWN_TIME = 0.5 # Time to wait before allowing another bird response
 
@@ -181,12 +183,17 @@ def bird_detected_response():
             bird_response_running = False
             in_interval_mode = True
 
+
 def interval_mode_cycle():
     """
     Manages the interval mode cycle of the deterrent system.
     Alternates between head rotation and deterrent activation.
-    Head rotation now pulses with brief pauses.
+    Head rotation times alternate between HEAD_ROTATE_TIME, HEAD_ROTATE_ALT1, and HEAD_ROTATE_ALT2.
     """
+    # Initialize rotation time sequence and index
+    rotation_times = [HEAD_ROTATE_TIME, HEAD_ROTATE_ALT1, HEAD_ROTATE_ALT2]
+    current_time_index = 0
+    
     while True:
         # Check system state with minimal lock time
         with system_state_lock:
@@ -198,10 +205,12 @@ def interval_mode_cycle():
             continue
             
         if current_interval_mode:
-            print("Interval Mode: Rotating Head with pulses.")
+            # Get current rotation time from sequence
+            current_rotation_time = rotation_times[current_time_index]
+            print(f"Interval Mode: Rotating Head with pulses for {current_rotation_time} seconds.")
             
             # Calculate timing for pulsed rotation
-            rotation_end_time = time.time() + HEAD_ROTATE_TIME
+            rotation_end_time = time.time() + current_rotation_time
             pulse_on_time = 0.2  # Time the head rotates before pausing
             pulse_off_time = 0.5  # Time the head pauses
             
@@ -238,6 +247,9 @@ def interval_mode_cycle():
                 with system_state_lock:
                     if not in_interval_mode or not system_active:
                         break
+            
+            # Update rotation time index for next cycle
+            current_time_index = (current_time_index + 1) % len(rotation_times)
             
             with system_state_lock:
                 current_interval_mode = in_interval_mode
