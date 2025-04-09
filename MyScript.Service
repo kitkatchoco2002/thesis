@@ -1,0 +1,18 @@
+[Unit]
+Description=My Startup Script
+After=network.target sound.target
+
+[Service]
+WorkingDirectory=/home/g3/thesis
+ExecStart=/home/g3/env/bin/python3 /home/g3/thesis/main.py
+Restart=always
+User=g3
+Group=g3
+Environment="PATH=/home/g3/env/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=/home/g3/env"
+Environment="SDL_AUDIODRIVER=alsa"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target
